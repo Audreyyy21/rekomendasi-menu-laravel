@@ -1,12 +1,10 @@
 ## ⚡ Cara Installation
 
 # 1. Install Dependencies
-composer install
-npm install
+composer install, npm install
 
 # 2. Setup Environment
-cp .env.example .env
-php artisan key:generate
+cp .env.example .env, php artisan key:generate
 
 # --- PENTING: Buat database di phpMyAdmin & atur file .env sebelum lanjut ---
 
