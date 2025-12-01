@@ -2,98 +2,99 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+use App\Models\Menu;
 use App\Models\Transaction;
 use App\Models\MonthlyRecommendation;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class RecommendationController extends Controller
 {
-    // Tambahkan method ini di dalam class
+    /**
+     * HALAMAN UTAMA REKOMENDASI
+     */
     public function index()
     {
-        // Ambil data rekomendasi terbaru
-        // Kita gunakan with() agar query efisien (Eager Loading)
-        $rekomendasi = \App\Models\MonthlyRecommendation::with([
-            'menuTopDaging', 
-            'menuTopJeroan', 
-            'menuBottomDaging', 
+        $rekomendasi = MonthlyRecommendation::with([
+            'menuTopDaging',
+            'menuTopJeroan',
+            'menuBottomDaging',
             'menuBottomJeroan'
         ])->latest()->first();
 
         return view('rekomendasi.index', compact('rekomendasi'));
     }
-    // UBAH NAMA FUNCTION DI SINI (dari generateRecommendation jadi generate)
+
+    /**
+     * GENERATE REKOMENDASI
+     */
     public function generate()
     {
-        // 1. Tentukan Bulan yang mau dianalisis (Juni 2024 sesuai data CSV)
-        $tahun = 2024;
-        $bulan = 6;
-        $formatBulan = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT); 
+        $bulan = Carbon::now()->format('Y-m');
 
-        // 2. Analisis Menu DAGING Terlaris (Top)
-        $topDaging = Transaction::whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->select('menu_daging_id', DB::raw('sum(jumlah_box) as total_jual'))
+        // Hitung menu daging paling laris
+        $topDaging = Transaction::selectRaw('menu_daging_id, SUM(jumlah_box) AS total')
             ->groupBy('menu_daging_id')
-            ->orderByDesc('total_jual')
+            ->orderByDesc('total')
             ->first();
 
-        // 3. Analisis Menu JEROAN Terlaris (Top)
-        $topJeroan = Transaction::whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->select('menu_jeroan_id', DB::raw('sum(jumlah_box) as total_jual'))
+        // Hitung menu jeroan paling laris
+        $topJeroan = Transaction::selectRaw('menu_jeroan_id, SUM(jumlah_box) AS total')
             ->groupBy('menu_jeroan_id')
-            ->orderByDesc('total_jual')
+            ->orderByDesc('total')
             ->first();
 
-        // 4. Analisis Menu Kurang Laku (Bottom) - Daging
-        $bottomDaging = Transaction::whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->select('menu_daging_id', DB::raw('sum(jumlah_box) as total_jual'))
+        // Hitung menu daging paling rendah
+        $bottomDaging = Transaction::selectRaw('menu_daging_id, SUM(jumlah_box) AS total')
             ->groupBy('menu_daging_id')
-            ->orderBy('total_jual', 'asc')
+            ->orderBy('total')
             ->first();
 
-        // 5. Analisis Menu Kurang Laku (Bottom) - Jeroan
-        $bottomJeroan = Transaction::whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->select('menu_jeroan_id', DB::raw('sum(jumlah_box) as total_jual'))
+        // Hitung menu jeroan paling rendah
+        $bottomJeroan = Transaction::selectRaw('menu_jeroan_id, SUM(jumlah_box) AS total')
             ->groupBy('menu_jeroan_id')
-            ->orderBy('total_jual', 'asc')
+            ->orderBy('total')
             ->first();
 
-        // Ambil Nama Menu untuk keperluan String Bundle
-        // Kita butuh query sebentar ke tabel menus karena variabel $topDaging cuma punya ID
-        $namaTopDaging = \App\Models\Menu::find($topDaging->menu_daging_id)->nama_menu ?? 'Daging';
-        $namaTopJeroan = \App\Models\Menu::find($topJeroan->menu_jeroan_id)->nama_menu ?? 'Jeroan';
-        $namaBottomDaging = \App\Models\Menu::find($bottomDaging->menu_daging_id)->nama_menu ?? 'Daging Lain';
-        $namaBottomJeroan = \App\Models\Menu::find($bottomJeroan->menu_jeroan_id)->nama_menu ?? 'Jeroan Lain';
+        // Ambil nama menu berdasarkan ID
+        $topDagingMenu  = Menu::find($topDaging->menu_daging_id ?? null);
+        $topJeroanMenu  = Menu::find($topJeroan->menu_jeroan_id ?? null);
+        $bottomDagingMenu = Menu::find($bottomDaging->menu_daging_id ?? null);
+        $bottomJeroanMenu = Menu::find($bottomJeroan->menu_jeroan_id ?? null);
 
-        // 6. Buat Bundle Rekomendasi
+        // Logika AI Bundling
         $bundle = [
-            'paket_1' => "Paket Puas ($namaTopDaging + $namaBottomJeroan)",
-            'paket_2' => "Paket Hemat ($namaBottomDaging + $namaTopJeroan)",
-            'alasan'  => "Kombinasi $namaTopDaging yang sedang tren dengan $namaBottomJeroan untuk menghabiskan stok."
+            'paket_1' => $topDagingMenu?->nama_menu . " + " . $topJeroanMenu?->nama_menu,
+            'paket_2' => $bottomDagingMenu?->nama_menu . " + " . $bottomJeroanMenu?->nama_menu,
+            'alasan'  => "Paket 1 menggabungkan menu paling laris untuk meningkatkan profit. 
+                          Paket 2 menggabungkan menu yang kurang laku untuk menaikkan minat pembelian."
         ];
 
-        // 7. Simpan ke Database
-        $rekomendasi = MonthlyRecommendation::updateOrCreate(
-            ['bulan' => $formatBulan],
-            [
-                'top_daging_id' => $topDaging ? $topDaging->menu_daging_id : null,
-                'top_jeroan_id' => $topJeroan ? $topJeroan->menu_jeroan_id : null,
-                'bottom_daging_id' => $bottomDaging ? $bottomDaging->menu_daging_id : null,
-                'bottom_jeroan_id' => $bottomJeroan ? $bottomJeroan->menu_jeroan_id : null,
-                'rekomendasi_bundle' => $bundle,
-                'status' => 'active'
-            ]
-        );
-        $rekomendasi->load(['menuTopDaging', 'menuTopJeroan', 'menuBottomDaging', 'menuBottomJeroan']);
-
-        return response()->json([
-            'message' => 'Analisis Selesai',
-            'data' => $rekomendasi
+        // Simpan ke database
+        MonthlyRecommendation::create([
+            'bulan' => $bulan,
+            'top_daging_id' => $topDagingMenu?->id,
+            'top_jeroan_id' => $topJeroanMenu?->id,
+            'bottom_daging_id' => $bottomDagingMenu?->id,
+            'bottom_jeroan_id' => $bottomJeroanMenu?->id,
+            'rekomendasi_bundle' => $bundle
         ]);
+
+        return redirect('/rekomendasi')->with('success', 'Rekomendasi berhasil dibuat!');
+    }
+
+    /**
+     * HALAMAN HISTORY
+     */
+    public function history()
+    {
+        $history = MonthlyRecommendation::with([
+            'menuTopDaging',
+            'menuTopJeroan',
+            'menuBottomDaging',
+            'menuBottomJeroan'
+        ])->orderBy('bulan', 'desc')->get();
+
+        return view('rekomendasi.history', compact('history'));
     }
 }

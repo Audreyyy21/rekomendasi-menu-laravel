@@ -16,12 +16,18 @@
         th { background-color: #f8f9fa; }
         .bundle-box { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 5px solid #2196f3; }
         .bundle-title { font-weight: bold; color: #0d47a1; margin-bottom: 5px; }
+        .btn-back { display: inline-block; padding: 8px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 15px; }
+        .btn-back:hover { background-color: #0056b3; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>Laporan Rekomendasi Menu</h1>
+
+    <!-- Tombol Kembali ke Dashboard -->
+    <a href="{{ route('dashboard') }}" class="btn-back"> Kembali ke Dashboard</a>
+
     <p style="text-align: center; color: #666;">Periode Analisis: <strong>{{ $rekomendasi->bulan ?? '-' }}</strong></p>
 
     @if($rekomendasi)
@@ -35,7 +41,7 @@
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>🔥 Paling Laris (TOP)</strong></td>
+                    <td><strong>Paling Laris (TOP)</strong></td>
                     <td>
                         {{ $rekomendasi->menuTopDaging->nama_menu }}
                         <span class="badge bg-green">Juara 1</span>
@@ -46,7 +52,7 @@
                     </td>
                 </tr>
                 <tr>
-                    <td><strong>📉 Kurang Laku (BOTTOM)</strong></td>
+                    <td><strong>Kurang Laku (BOTTOM)</strong></td>
                     <td>
                         {{ $rekomendasi->menuBottomDaging->nama_menu }}
                         <span class="badge bg-red">Perlu Promo</span>
@@ -60,7 +66,7 @@
         </table>
 
         <div class="bundle-box">
-            <div class="bundle-title">💡 Rekomendasi AI (Bundle Strategy)</div>
+            <div class="bundle-title">Rekomendasi AI (Bundle Strategy)</div>
             <p><strong>Paket 1:</strong> {{ $rekomendasi->rekomendasi_bundle['paket_1'] }}</p>
             <p><strong>Paket 2:</strong> {{ $rekomendasi->rekomendasi_bundle['paket_2'] }}</p>
             <hr style="border: 0; border-top: 1px dashed #ccc;">
